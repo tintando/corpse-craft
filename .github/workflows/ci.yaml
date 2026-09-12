@@ -1,0 +1,40 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: ci
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # There is no build gate here, and there cannot be one: compiling a SWF needs the
+      # 2.3 GB of pinned dependency checkouts and the Apache Flex SDK that README.md
+      # explains how to assemble, plus an Adobe playerglobal.swc that survives at exactly
+      # one URL. What CI can gate is every file this repository actually owns.
+      - run: shellcheck build.sh
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - run: pip install ruff
+      - run: ruff check tools/
+      - run: python -m py_compile tools/savetool.py
+
+      # The patches are the part of this repository most likely to rot, and a truncated or
+      # rewrapped hunk header is invisible until someone tries to apply it. --stat parses
+      # every hunk without needing the game checkout the patches target.
+      - run: git apply --stat patches/*.patch

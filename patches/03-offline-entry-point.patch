@@ -1,0 +1,28 @@
+diff --git a/games/popcraft/src/popcraft/PopCraft_Offline.as b/games/popcraft/src/popcraft/PopCraft_Offline.as
+new file mode 100644
+index 000000000..42b4e765b
+--- /dev/null
++++ b/games/popcraft/src/popcraft/PopCraft_Offline.as
+@@ -0,0 +1,22 @@
++//
++// $Id$
++
++package popcraft {
++
++/**
++ * A fully self-contained standalone build. Identical to PopCraft_Standalone, except that levels
++ * are read from the classes embedded in the SWF rather than from loose .xml files on disk, so the
++ * SWF needs no filesystem access at all.
++ */
++[SWF(width="700", height="500", frameRate="30")]
++public class PopCraft_Offline extends PopCraft_Standalone
++{
++    public function PopCraft_Offline ()
++    {
++        // PopCraft_Standalone's constructor turns this on so that levels can be edited without
++        // recompiling; we want the embedded copies instead.
++        Constants.DEBUG_LOAD_LEVELS_FROM_DISK = false;
++    }
++}
++
++}

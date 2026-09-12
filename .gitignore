@@ -1,0 +1,24 @@
+# Dependency checkouts. Cloned and pinned by hand, or wherever CORPSE_CRAFT_DEPS points.
+deps/
+
+# Build output, and the level data build.sh copies out of the game checkout.
+bin/
+levels/
+
+# Ruffle, if you unpack it here rather than installing it system-wide.
+tools/ruffle
+tools/LICENSE.md
+tools/README.md
+tools/extras/
+
+# Python
+__pycache__/
+*.pyc
+.ruff_cache/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~

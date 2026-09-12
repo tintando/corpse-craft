@@ -1,0 +1,141 @@
+diff --git a/games/popcraft/src/popcraft/UserCookieManager.as b/games/popcraft/src/popcraft/UserCookieManager.as
+index 468567979..77c903c0b 100644
+--- a/games/popcraft/src/popcraft/UserCookieManager.as
++++ b/games/popcraft/src/popcraft/UserCookieManager.as
+@@ -5,6 +5,8 @@ package popcraft {
+ 
+ import com.threerings.util.Log;
+ 
++import flash.net.SharedObject;
++import flash.net.SharedObjectFlushStatus;
+ import flash.utils.ByteArray;
+ 
+ public class UserCookieManager
+@@ -38,42 +40,97 @@ public class UserCookieManager
+                 _loadingCookie = true;
+ 
+             } else {
+-                completeLoadData(null);
++                completeLoadData(readLocalCookie());
+             }
+         }
+     }
+ 
+     protected function writeCookie () :void
+     {
+-        if (ClientCtx.gameCtrl.isConnected()) {
+-            var ba :ByteArray = new ByteArray();
+-            var success :Boolean;
+-            var errString :String;
+-            try {
+-                ba.writeShort(_cookieVersion);
++        var ba :ByteArray = new ByteArray();
++        var success :Boolean;
++        var errString :String;
++        try {
++            ba.writeShort(_cookieVersion);
+ 
+-                for each (var dataSource :UserCookieDataSource in _dataSources) {
+-                    dataSource.writeCookieData(ba);
+-                }
+-                ba.compress();
++            for each (var dataSource :UserCookieDataSource in _dataSources) {
++                dataSource.writeCookieData(ba);
++            }
++            ba.compress();
+ 
++            if (ClientCtx.gameCtrl.isConnected()) {
+                 success = ClientCtx.gameCtrl.player.setCookie(ba);
+                 if (!success) {
+                     errString = "PlayerSubControl.setCookie() failed (" + ba.length +
+                                 "-byte cookie too large?)";
+                 }
+ 
+-            } catch (e :Error) {
+-                success = false;
+-                errString = e.message;
++            } else {
++                var status :String = writeLocalCookie(ba);
++                success = (status == SharedObjectFlushStatus.FLUSHED);
++                if (!success) {
++                    errString = "SharedObject.flush() returned '" + status + "' (" + ba.length +
++                                "-byte cookie)";
++                }
+             }
+ 
+-            if (success) {
+-                log.info("successfully saved user cookie");
+-            } else {
+-                log.warning("failed to save user cookie: " + errString);
++        } catch (e :Error) {
++            success = false;
++            errString = e.message;
++        }
++
++        if (success) {
++            log.info("successfully saved user cookie");
++        } else {
++            log.warning("failed to save user cookie: " + errString);
++        }
++    }
++
++    /**
++     * Standalone builds aren't connected to a whirled server, so there's nowhere to put the
++     * cookie except the player's own machine. Returns null if nothing has been saved yet.
++     */
++    protected function readLocalCookie () :ByteArray
++    {
++        var ba :ByteArray;
++        try {
++            var stored :ByteArray = (SharedObject.getLocal(LOCAL_COOKIE_NAME).data.cookie
++                                     as ByteArray);
++            if (null != stored) {
++                // Hand back a copy, never the SharedObject's own ByteArray: completeLoadData()
++                // uncompresses in place, and mutating the stored instance would leave the
++                // SharedObject holding uncompressed bytes, which get flushed back to disk on a
++                // clean shutdown. The next read would then throw on uncompress() and silently
++                // reset every data source.
++                ba = new ByteArray();
++                stored.position = 0;
++                ba.writeBytes(stored);
++                ba.position = 0;
++
++                if (ba.length > 0 && ba[0] != ZLIB_CMF) {
++                    // An earlier build stored the cookie uncompressed (see above). Recompress
++                    // it so completeLoadData()'s uncompress() succeeds, rather than throwing
++                    // and resetting the player's progress.
++                    log.info("recompressing an uncompressed local cookie");
++                    ba.compress();
++                    ba.position = 0;
++                }
+             }
++        } catch (e :Error) {
++            log.warning("failed to read local cookie storage: " + e.message);
+         }
++
++        return ba;
++    }
++
++    /**
++     * @return the SharedObjectFlushStatus reported by the flush.
++     */
++    protected function writeLocalCookie (ba :ByteArray) :String
++    {
++        var so :SharedObject = SharedObject.getLocal(LOCAL_COOKIE_NAME);
++        so.data.cookie = ba;
++        return so.flush();
+     }
+ 
+     protected function completeLoadData (cookie :Object, ...unused) :void
+@@ -139,6 +196,11 @@ public class UserCookieManager
+     protected var _dataSources :Array = [];
+     protected var _loadingCookie :Boolean;
+ 
++    protected static const LOCAL_COOKIE_NAME :String = "popcraft";
++
++    /** First byte of a zlib stream as written by ByteArray.compress(). */
++    protected static const ZLIB_CMF :int = 0x78;
++
+     protected static const log :Log = Log.getLog(UserCookieManager);
+ }
+ 

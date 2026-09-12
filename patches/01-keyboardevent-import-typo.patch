@@ -1,0 +1,13 @@
+diff --git a/games/popcraft/src/popcraft/game/GameMode.as b/games/popcraft/src/popcraft/game/GameMode.as
+index efb9f9897..f6ef815bf 100644
+--- a/games/popcraft/src/popcraft/game/GameMode.as
++++ b/games/popcraft/src/popcraft/game/GameMode.as
+@@ -14,7 +14,7 @@ import com.whirled.contrib.messagemgr.Message;
+ import com.whirled.game.OccupantChangedEvent;
+ 
+ import flash.display.DisplayObjectContainer;
+-import flash.event.KeyboardEvent;
++import flash.events.KeyboardEvent;
+ import flash.geom.Point;
+ 
+ import popcraft.*;

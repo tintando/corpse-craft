@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PopCraft</title>
+<meta name="description" content="PopCraft, a 2011 Whirled game, rebuilt from source and running in the browser under Ruffle.">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #ece7dd;
+    --dim: #9a9187;
+    --ground: #14120f;
+    --panel: #1d1a16;
+    --line: #322c25;
+    --link: #d8a657;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    padding: 24px 16px 40px;
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    min-height: 100vh;
+  }
+
+  header { text-align: center; max-width: 62ch; }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 1.6rem;
+    letter-spacing: 0.02em;
+  }
+
+  header p { margin: 0; color: var(--dim); }
+
+  a { color: var(--link); }
+
+  /* The stage is 700x500. It scales down on narrow screens and never past its
+     native size, so the artwork is never upscaled into mush. */
+  #stage {
+    width: min(700px, 100%);
+    aspect-ratio: 7 / 5;
+    background: #000;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  #stage ruffle-player { width: 100%; height: 100%; display: block; }
+
+  #fallback {
+    display: none;
+    padding: 24px;
+    color: var(--dim);
+    text-align: center;
+  }
+
+  footer {
+    max-width: 62ch;
+    color: var(--dim);
+    font-size: 0.88rem;
+    text-align: center;
+  }
+
+  footer p { margin: 0 0 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PopCraft</h1>
+  <p>A 2011 Whirled game, rebuilt from source with a toolchain that no longer exists, running here under Ruffle. The <a href="https://github.com/tintando/corpse-craft">corpse-craft</a> repository is how it was put back together.</p>
+</header>
+
+<div id="stage">
+  <div id="fallback">
+    <p>Ruffle did not load, so there is nothing to play here.</p>
+    <p>It needs WebAssembly, which every current browser has. A content blocker or a very old browser is the usual cause.</p>
+  </div>
+</div>
+
+<footer>
+  <p>Progress is saved in this browser, under this page's address. Clearing site data for this domain resets the game, and a private window forgets it when you close the tab.</p>
+  <p>Click the stage first: browsers will not start the sound until the page has been interacted with.</p>
+</footer>
+
+<script src="ruffle/ruffle.js"></script>
+<script>
+  // Config has to exist before ruffle.js finishes initialising, so it is set on the
+  // same object rather than passed only to load().
+  window.RufflePlayer = window.RufflePlayer || {};
+
+  window.addEventListener("load", () => {
+    const stage = document.getElementById("stage");
+
+    if (!window.RufflePlayer || typeof window.RufflePlayer.newest !== "function") {
+      document.getElementById("fallback").style.display = "block";
+      return;
+    }
+
+    const player = window.RufflePlayer.newest().createPlayer();
+    stage.replaceChildren(player);
+
+    // The SharedObject that carries save progress is keyed on the URL this SWF is
+    // served from, so the filename and its location must stay put across deploys or
+    // every player's progress orphans. See "Save data" in the repository README.
+    player.load({
+      url: "PopCraft-offline.swf",
+      autoplay: "auto",
+      unmuteOverlay: "visible",
+      letterbox: "on",
+      scale: "showAll",
+      quality: "high",
+      contextMenu: "off",
+      // The offline build embeds its levels and asks the network for nothing.
+      allowNetworking: "none",
+    });
+  });
+</script>
+
+</body>
+</html>

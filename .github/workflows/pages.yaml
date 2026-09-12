@@ -1,0 +1,136 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+---
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one in flight: a half-finished
+# Pages deploy would leave the published site broken.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Every dependency is pinned to a revision contemporaneous with PopCraft's last
+  # real commit. README.md explains why each one. HEAD of these repos has drifted
+  # far enough to break the build, so none of these may float.
+  WHIRLED_PROJECTS_REV: 83fa8a94a
+  WHIRLED_SDK_REV: 418d4ec
+  FLASHBANG_REV: d7bd0d5
+  ASPIRIN_REV: f7b61d2
+  NARYA_REV: 99967bf
+  FLEX_VERSION: 4.16.1
+  # Pinned rather than "latest": Ruffle is an emulator under active development and
+  # its compatibility moves in both directions.
+  RUFFLE_VERSION: 0.6.0
+  RUFFLE_SHA256: e8acfacc37443303872379d0e215999af846854d1dd3fa8fac0a765445b43dbf
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # The build was verified locally on OpenJDK 25. mxmlc is a 2011 compiler and
+      # is the part most likely to object to a newer JDK, so this is the first knob
+      # to reach for if the compile starts failing.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - id: deps-cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: deps-${{ env.WHIRLED_PROJECTS_REV }}-${{ env.WHIRLED_SDK_REV }}-${{ env.FLASHBANG_REV }}-${{ env.ASPIRIN_REV }}-${{ env.NARYA_REV }}-flex${{ env.FLEX_VERSION }}
+
+      # whirled-projects is 2.1 GB because it holds every avatar, pet and toy ever
+      # published for Whirled, and this build wants one directory of it. A blobless
+      # partial clone plus a sparse checkout fetches only what games/popcraft needs.
+      - name: Check out the pinned dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p deps && cd deps
+
+          git clone --filter=blob:none --no-checkout https://github.com/greyhavens/whirled-projects.git
+          git -C whirled-projects sparse-checkout set --cone games/popcraft
+          git -C whirled-projects checkout "$WHIRLED_PROJECTS_REV"
+
+          git clone --filter=blob:none --no-checkout https://github.com/greyhavens/whirled-sdk.git
+          git -C whirled-sdk sparse-checkout set --cone libraries/whirled contrib lib
+          git -C whirled-sdk checkout "$WHIRLED_SDK_REV"
+
+          git clone https://github.com/threerings/flashbang.git
+          git clone https://github.com/threerings/aspirin.git
+          git clone https://github.com/threerings/narya.git
+          git -C flashbang checkout "$FLASHBANG_REV"
+          git -C aspirin   checkout "$ASPIRIN_REV"
+          git -C narya     checkout "$NARYA_REV"
+
+      # playerglobal.swc is not in the Flex tarball and never was: Adobe distributed
+      # it separately, and mxmlc finds it through PLAYERGLOBAL_HOME, which build.sh sets.
+      - name: Fetch the Flex SDK and playerglobal
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          cd deps
+          curl -fsSLO "https://archive.apache.org/dist/flex/${FLEX_VERSION}/binaries/apache-flex-sdk-${FLEX_VERSION}-bin.tar.gz"
+          mkdir -p flexsdk
+          tar xzf "apache-flex-sdk-${FLEX_VERSION}-bin.tar.gz" -C flexsdk --strip-components=1
+          rm "apache-flex-sdk-${FLEX_VERSION}-bin.tar.gz"
+
+          mkdir -p flexsdk/frameworks/libs/player/32.0
+          curl -fsSL -o flexsdk/frameworks/libs/player/32.0/playerglobal.swc \
+              https://fpdownload.macromedia.com/get/flashplayer/updaters/32/playerglobal32_0.swc
+
+      # The cache restores a tree that has already been patched, so applying again
+      # would fail on an already-applied hunk. --reverse --check detects that.
+      - name: Apply the patches
+        run: |
+          set -euo pipefail
+          if git -C deps/whirled-projects apply --reverse --check "$PWD"/patches/*.patch 2>/dev/null; then
+            echo "patches already applied (restored from cache)"
+          else
+            git -C deps/whirled-projects apply "$PWD"/patches/*.patch
+          fi
+
+      - name: Build the offline SWF
+        run: ./build.sh offline
+
+      - name: Assemble the site
+        run: |
+          set -euo pipefail
+          curl -fsSLO "https://github.com/ruffle-rs/ruffle/releases/download/v${RUFFLE_VERSION}/ruffle-${RUFFLE_VERSION}-web-selfhosted.zip"
+          echo "${RUFFLE_SHA256}  ruffle-${RUFFLE_VERSION}-web-selfhosted.zip" | sha256sum -c -
+
+          mkdir -p site/ruffle
+          unzip -q "ruffle-${RUFFLE_VERSION}-web-selfhosted.zip" -d site/ruffle
+          # Source maps are a third of the payload and nothing serves them a purpose here.
+          rm -f site/ruffle/*.map
+
+          cp web/index.html site/
+          cp bin/PopCraft-offline.swf site/
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
