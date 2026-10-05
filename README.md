@@ -8,8 +8,7 @@ Ant thrown out for a direct mxmlc invocation. Six dependencies pinned to 2011. S
 
 <img src="docs/media/hero.gif" alt="PopCraft's attract screen running under Ruffle: the Weardd Academy courtyard, units crossing the yard, and the resource board under the title banner" width="75%">
 
-<!-- HOSTED: this goes live the first time the pages workflow runs against a repository with Pages enabled. Drop this comment then. -->
-Play it in a browser: **https://tintando.github.io/corpse-craft/**
+Play it in a browser: **https://corpse-craft.tintan.do/**
 
 </div>
 
@@ -116,7 +115,7 @@ The offline build asks the filesystem for nothing, so `deny` is the right settin
 
 ### Running it in a browser
 
-Ruffle has a WebAssembly build as well as a desktop one, and the offline SWF is exactly the shape it wants: levels embedded, nothing asked of the filesystem, nothing asked of the network. `web/index.html` is the whole player page, and `.github/workflows/pages.yaml` builds the SWF, fetches a pinned Ruffle web build, assembles the two into a site and deploys it to GitHub Pages on every push to `main`. Nothing compiled and nothing emulated is committed to this repository: both are fetched or built in the runner.
+Ruffle has a WebAssembly build as well as a desktop one, and the offline SWF is exactly the shape it wants: levels embedded, nothing asked of the filesystem, nothing asked of the network. `web/index.html` is the whole player page, and `.github/workflows/pages.yaml` builds the SWF, fetches a pinned Ruffle web build, assembles the two into a site and deploys it to Cloudflare Pages, at `corpse-craft.tintan.do`, on every push to `main`. Nothing compiled and nothing emulated is committed to this repository: both are fetched or built in the runner.
 
 To try the same page locally, build the offline SWF, put a Ruffle web build beside it and serve the directory. Opening `index.html` from `file://` will not work, because the browser refuses to fetch WebAssembly across that origin:
 
@@ -256,7 +255,8 @@ corpse-craft/
 ├── tools/
 │   └── savetool.py          # read and edit the Local Shared Object
 ├── web/
-│   └── index.html           # the browser player, deployed to Pages by the workflow
+│   ├── index.html           # the browser player, deployed to Pages by the workflow
+│   └── 404.html             # what the host serves for an unknown path
 ├── docs/media/              # hero.gif and the shot list that produced it
 ├── deps/                    # not in git: the six checkouts the quick start makes
 ├── bin/                     # not in git: build output
